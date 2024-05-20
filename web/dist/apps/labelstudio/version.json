@@ -1,6 +1,6 @@
 {
-  "message": "CI: Keep biome version sync",
-  "commit": "66eba02dd5b6a0ff08ebcf41c89cb056122ab404",
-  "date": "2024-05-17T22:07:44.000Z",
-  "branch": "ci/biome-version"
+  "message": "enable some rules in biome",
+  "commit": "3d2e3290d838c330c1b850fcd241cdf9235c6732",
+  "date": "2024-05-17T22:54:21.000Z",
+  "branch": "fb-biome/enable-some-rules"
 }
