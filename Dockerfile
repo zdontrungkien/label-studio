@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1.3
+ARG BUILDPLATFORM=linux/amd64
 FROM --platform=${BUILDPLATFORM} node:18 AS frontend-builder
 
 ENV NPM_CACHE_LOCATION=$HOME/.cache/yarn/v6 \
@@ -10,13 +11,11 @@ WORKDIR /label-studio/web
 COPY --chown=1001:0 web .
 COPY --chown=1001:0 pyproject.toml /label-studio
 
-# Fix Docker Arm64 Build
 RUN yarn config set registry https://registry.npmjs.org/
 RUN yarn config set network-timeout 1200000 # HTTP timeout used when downloading packages, set to 20 minutes
 
-RUN --mount=type=cache,target=$NPM_CACHE_LOCATION,uid=1001,gid=0 \
-    yarn install --frozen-lockfile \
-    && yarn run build
+RUN yarn install --frozen-lockfile && yarn run build
+
 
 FROM ubuntu:22.04
 
@@ -31,7 +30,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR $LS_DIR
 
-# install packages
 RUN set -eux \
  && apt-get update \
  && apt-get install --no-install-recommends --no-install-suggests -y \
@@ -40,10 +38,9 @@ RUN set -eux \
     apt-get purge --assume-yes --auto-remove --option APT::AutoRemove::RecommendsImportant=false \
      --option APT::AutoRemove::SuggestsImportant=false && rm -rf /var/lib/apt/lists/* /tmp/*
 
-RUN --mount=type=cache,target=$PIP_CACHE_DIR,uid=1001,gid=0 \
-    pip3 install --upgrade pip setuptools && pip3 install poetry uwsgi uwsgitop
+RUN pip3 install --upgrade pip setuptools && pip3 install poetry uwsgi uwsgitop
 
-# incapsulate nginx install & configure to a single layer
+
 RUN set -eux; \
     curl -sSL https://nginx.org/keys/nginx_signing.key | apt-key add - && \
     echo "deb https://nginx.org/packages/mainline/ubuntu/ $(lsb_release -cs) nginx" >> /etc/apt/sources.list && \
@@ -58,17 +55,13 @@ RUN set -eux; \
     mkdir -p $OPT_DIR /var/log/nginx /var/cache/nginx /etc/nginx && \
     chown -R 1001:0 $OPT_DIR /var/log/nginx /var/cache/nginx /etc/nginx
 
-# Copy essential files for installing Label Studio and its dependencies
 COPY --chown=1001:0 pyproject.toml .
 COPY --chown=1001:0 poetry.lock .
 COPY --chown=1001:0 README.md .
 COPY --chown=1001:0 label_studio/__init__.py ./label_studio/__init__.py
 
-# Ensure the poetry lockfile is up to date, then install all deps from it to
-# the system python. This includes label-studio itself. For caching purposes,
-# do this before copying the rest of the source code.
-RUN --mount=type=cache,target=$POETRY_CACHE_DIR \
-    poetry check --lock && POETRY_VIRTUALENVS_CREATE=false poetry install
+RUN poetry check --lock && POETRY_VIRTUALENVS_CREATE=false poetry install
+
 
 COPY --chown=1001:0 . .
 
